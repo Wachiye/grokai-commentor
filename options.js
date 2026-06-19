@@ -18,6 +18,7 @@ const fields = {
 };
 
 loadSettings();
+setupUsageUI();
 
 form.addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -97,6 +98,7 @@ testBtn.addEventListener("click", async () => {
       if (result.model && result.model !== fields.model.value) {
         fields.model.value = result.model;
       }
+      loadUsageStats();  // refresh after test call
     } else {
       testStatus.className = "test-status err";
       testStatus.textContent = result.error || "Connection failed.";
@@ -221,4 +223,66 @@ function sendMessage(payload) {
       resolve(response);
     });
   });
+}
+
+// --- Credits / Usage Stats ---
+
+async function loadUsageStats() {
+  const container = document.getElementById("usage-stats");
+  if (!container) return;
+
+  try {
+    const result = await sendMessage({ type: "GET_USAGE_STATS" });
+    const stats = result.stats || {};
+    const recent = stats.recentCalls || [];
+
+    const fmtCost = (c) => (c || 0).toFixed(4);
+    const fmtNum = (n) => (n || 0).toLocaleString();
+
+    let html = `
+      <strong>Total calls:</strong> ${fmtNum(stats.callCount)}<br>
+      <strong>Prompt tokens:</strong> ${fmtNum(stats.totalPromptTokens)}<br>
+      <strong>Completion tokens:</strong> ${fmtNum(stats.totalCompletionTokens)}<br>
+      <strong>Est. total cost:</strong> $${fmtCost(stats.totalCost)}<br>
+    `;
+
+    if (recent.length > 0) {
+      html += `<div style="margin-top:8px;font-size:11px;"><strong>Recent calls:</strong></div>`;
+      html += `<div style="max-height:120px;overflow:auto;font-size:11px;line-height:1.3;">`;
+      recent.slice(0, 5).forEach(call => {
+        const date = new Date(call.timestamp).toLocaleTimeString();
+        html += `${date} • ${call.model} • ${call.promptTokens}+${call.completionTokens} tokens • ~$${fmtCost(call.estimatedCost)}<br>`;
+      });
+      html += `</div>`;
+    }
+
+    container.innerHTML = html;
+  } catch (e) {
+    container.innerHTML = `<span style="color:#c00;">Failed to load usage: ${e.message}</span>`;
+  }
+}
+
+async function resetUsage() {
+  if (!confirm("Reset all local usage statistics? (This only clears browser estimates)")) return;
+  await sendMessage({ type: "RESET_USAGE_STATS" });
+  await loadUsageStats();
+}
+
+function setupUsageUI() {
+  const refreshBtn = document.getElementById("refresh-usage-btn");
+  const billingBtn = document.getElementById("open-billing-btn");
+  const usageBtn = document.getElementById("open-usage-btn");
+  const resetBtn = document.getElementById("reset-usage-btn");
+
+  if (refreshBtn) refreshBtn.addEventListener("click", loadUsageStats);
+  if (billingBtn) billingBtn.addEventListener("click", () => {
+    chrome.tabs.create({ url: "https://console.x.ai/team/default/billing" });
+  });
+  if (usageBtn) usageBtn.addEventListener("click", () => {
+    chrome.tabs.create({ url: "https://console.x.ai/team/default/usage" });
+  });
+  if (resetBtn) resetBtn.addEventListener("click", resetUsage);
+
+  // Load on open
+  loadUsageStats();
 }

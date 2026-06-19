@@ -10,6 +10,18 @@ const FALLBACK_MODELS = [
   "grok-3-mini"
 ];
 
+// Pricing per 1M tokens (approx, update as needed from console.x.ai)
+const MODEL_PRICING = {
+  "grok-4.3": { input: 1.25, output: 2.50 },
+  "grok-3": { input: 2.00, output: 6.00 },
+  "grok-3-fast": { input: 0.20, output: 0.50 },
+  "grok-3-mini": { input: 0.10, output: 0.30 },
+  default: { input: 1.25, output: 2.50 }
+};
+
+const USAGE_STORAGE_KEY = "usageStats";
+const MAX_RECENT_CALLS = 20;
+
 const pendingPanelRequests = new Map();
 const panelDeliveryTimers = new Map();
 
@@ -167,6 +179,12 @@ async function handleMessage(message, sender) {
     case "FETCH_MODELS":
       return fetchAvailableModels(message.apiKey);
 
+    case "GET_USAGE_STATS":
+      return getUsageStats();
+
+    case "RESET_USAGE_STATS":
+      return resetUsageStats();
+
     case "EXTRACT_PAGE": {
       const tabId = message.tabId || sender.tab?.id || (await getActiveTab())?.id;
       if (!tabId) throw new Error("No active tab");
@@ -314,6 +332,10 @@ function parseApiError(status, data) {
     return `${message} Check that your API key is correct and active at console.x.ai.`;
   }
 
+  if (status === 402) {
+    return `${message} Credits exhausted or payment required. Check your balance and usage at console.x.ai → Billing.`;
+  }
+
   if (status === 403) {
     return [
       message,
@@ -359,6 +381,7 @@ async function grokRequest(url, apiKey, payload) {
 async function chatWithGrok(messages, options = {}) {
   const settings = await getSettings();
   const requestedModel = options.model || settings.model || DEFAULT_MODEL;
+  const action = options.action || "chat";
 
   const systemPrompt = options.systemPrompt || settings.systemPrompt;
 
@@ -375,6 +398,9 @@ async function chatWithGrok(messages, options = {}) {
   try {
     const data = await grokRequest(GROK_API_URL, settings.apiKey, body);
     const content = data.choices?.[0]?.message?.content || "";
+    if (data.usage) {
+      await recordUsage(data.usage, requestedModel, action);
+    }
     return {
       success: true,
       content,
@@ -391,6 +417,9 @@ async function chatWithGrok(messages, options = {}) {
             model: fallbackModel
           });
           const content = data.choices?.[0]?.message?.content || "";
+          if (data.usage) {
+            await recordUsage(data.usage, fallbackModel, action);
+          }
           return {
             success: true,
             content,
@@ -516,7 +545,8 @@ Write fresh human-sounding replies only. Include the score block for each. No ot
     return chatWithGrok([{ role: "user", content: userPrompt }], {
       systemPrompt: settings.commentPrompt,
       temperature: 0.92,
-      maxTokens: 2800
+      maxTokens: 2800,
+      action: "comment"
     });
   }
 
@@ -569,7 +599,8 @@ Write fresh human-sounding replies only. Include the score block for each. No ot
     return chatWithGrok([{ role: "user", content: parts.join("\n\n") }], {
       systemPrompt: settings.postPrompt,
       temperature: 0.92,
-      maxTokens: 2800
+      maxTokens: 2800,
+      action: "post"
     });
   }
 
@@ -659,4 +690,73 @@ async function extractPageContent(tabId) {
   });
 
   return { success: true, ...result };
+}
+
+// --- Usage / Credits Tracking ---
+
+function getPricing(model) {
+  return MODEL_PRICING[model] || MODEL_PRICING.default;
+}
+
+function estimateCost(usage, model) {
+  if (!usage) return 0;
+  const p = getPricing(model);
+  const promptCost = ((usage.prompt_tokens || 0) / 1_000_000) * p.input;
+  const completionCost = ((usage.completion_tokens || 0) / 1_000_000) * p.output;
+  return promptCost + completionCost;
+}
+
+async function getUsageStats() {
+  const data = await chrome.storage.local.get(USAGE_STORAGE_KEY);
+  const stats = data[USAGE_STORAGE_KEY] || {
+    totalPromptTokens: 0,
+    totalCompletionTokens: 0,
+    totalCost: 0,
+    callCount: 0,
+    recentCalls: []
+  };
+  return { success: true, stats };
+}
+
+async function recordUsage(usage, model, action = "chat") {
+  if (!usage) return;
+
+  const now = Date.now();
+  const cost = estimateCost(usage, model);
+
+  const data = await chrome.storage.local.get(USAGE_STORAGE_KEY);
+  let stats = data[USAGE_STORAGE_KEY] || {
+    totalPromptTokens: 0,
+    totalCompletionTokens: 0,
+    totalCost: 0,
+    callCount: 0,
+    recentCalls: []
+  };
+
+  stats.totalPromptTokens += usage.prompt_tokens || 0;
+  stats.totalCompletionTokens += usage.completion_tokens || 0;
+  stats.totalCost += cost;
+  stats.callCount += 1;
+
+  const call = {
+    timestamp: now,
+    model,
+    action,
+    promptTokens: usage.prompt_tokens || 0,
+    completionTokens: usage.completion_tokens || 0,
+    totalTokens: usage.total_tokens || 0,
+    estimatedCost: cost
+  };
+
+  stats.recentCalls.unshift(call);
+  if (stats.recentCalls.length > MAX_RECENT_CALLS) {
+    stats.recentCalls.pop();
+  }
+
+  await chrome.storage.local.set({ [USAGE_STORAGE_KEY]: stats });
+}
+
+async function resetUsageStats() {
+  await chrome.storage.local.remove(USAGE_STORAGE_KEY);
+  return { success: true };
 }

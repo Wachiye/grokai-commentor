@@ -245,7 +245,7 @@ class GrokFloatingButton {
         const response = await chrome.runtime.sendMessage(payload);
 
         if (response && response.content) {
-          this.showResults(response.content, action, ctx, usedTone);
+          this.showResults(response.content, action, ctx, usedTone, response.usage);
         } else if (response && response.error) {
           this.showResultsError(response.error);
         } else {
@@ -464,7 +464,7 @@ class GrokFloatingButton {
         const response = await chrome.runtime.sendMessage(payload);
 
         if (response && response.content) {
-          this.showResults(response.content, "post", genCtx, usedTone);
+          this.showResults(response.content, "post", genCtx, usedTone, response.usage);
         } else if (response && response.error) {
           this.showResultsError(response.error);
         } else {
@@ -517,7 +517,7 @@ class GrokFloatingButton {
     if (close) close.onclick = () => this.clearResults();
   }
 
-  showResults(rawContent, action, ctx, usedTone = 'auto') {
+  showResults(rawContent, action, ctx, usedTone = 'auto', usage = null) {
     this.ensureStyles();
     this.actionsContainer.style.display = "none";
     this.resultsContainer.style.display = "block";
@@ -582,6 +582,12 @@ class GrokFloatingButton {
       html += `<div style="font-size:11px;color:#555;margin:6px 2px 4px;padding-left:2px;">${this.escapeHtml(parsed.bestPick)}</div>`;
     }
 
+    if (usage) {
+      const p = usage.prompt_tokens || 0;
+      const c = usage.completion_tokens || 0;
+      html += `<div style="font-size:10px;color:#666;margin:4px 0;">This call: ${p} in + ${c} out tokens</div>`;
+    }
+
     html += `
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
         <button class="grokai-float-btn copy-best" style="padding:5px 10px;font-size:11px;">Copy best</button>
@@ -642,7 +648,7 @@ class GrokFloatingButton {
           msg.tone = regenTone;
           const resp = await chrome.runtime.sendMessage(msg);
           if (resp?.content) {
-            this.showResults(resp.content, this.resultsData.action, freshCtx, regenTone);
+            this.showResults(resp.content, this.resultsData.action, freshCtx, regenTone, resp.usage);
           } else {
             this.showResultsError("Regenerate failed");
           }

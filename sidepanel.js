@@ -240,6 +240,12 @@ async function sendMessage() {
     if (result.usedFallbackModel) {
       addMessage("system", `Used fallback model: ${result.model}`);
     }
+    if (result.usage) {
+      const u = result.usage;
+      const p = u.prompt_tokens || 0;
+      const c = u.completion_tokens || 0;
+      addMessage("system", `Usage: ${p} prompt + ${c} completion tokens`);
+    }
   } catch (err) {
     addMessage("error", err.message);
   } finally {
@@ -271,6 +277,12 @@ async function generate(action, content, extraContext = {}) {
     addMessage("assistant", result.content);
     if (result.usedFallbackModel) {
       addMessage("system", `Used fallback model: ${result.model}`);
+    }
+    if (result.usage) {
+      const u = result.usage;
+      const p = u.prompt_tokens || 0;
+      const c = u.completion_tokens || 0;
+      addMessage("system", `Usage: ${p} prompt + ${c} completion tokens`);
     }
     chatHistory.push(
       { role: "user", content: buildUserPrompt(content) },

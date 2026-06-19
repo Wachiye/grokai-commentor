@@ -59,6 +59,23 @@
         <span>Show floating button on pages</span>
       </label>
 
+      <div id="usage-section" style="margin: 16px 0; padding: 12px; background: #f9f9f9; border: 1px solid #eee; border-radius: 8px;">
+        <div style="font-weight: 600; margin-bottom: 8px;">Credits &amp; Usage Stats (local estimates)</div>
+        <div id="usage-stats" style="font-size: 13px; line-height: 1.5; margin-bottom: 10px;">
+          <div>Loading...</div>
+        </div>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <button type="button" id="refresh-usage-btn" style="font-size:12px;">Refresh Stats</button>
+          <button type="button" id="open-billing-btn" style="font-size:12px;">Open Billing (real balance)</button>
+          <button type="button" id="open-usage-btn" style="font-size:12px;">Open Usage Explorer</button>
+          <button type="button" id="reset-usage-btn" style="font-size:12px; color:#c00;">Reset Local Stats</button>
+        </div>
+        <small style="display:block; margin-top:6px; color:#666;">
+          Real credit balance &amp; detailed stats live in the <a href="https://console.x.ai" target="_blank">xAI Console</a>.<br>
+          Local stats are estimates based on responses received in this browser.
+        </small>
+      </div>
+
       <div class="actions">
         <button type="submit">Save Settings</button>
         <button type="button" id="test-btn">Test Connection</button>
