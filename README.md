@@ -130,3 +130,16 @@ This project is provided as-is for personal use.
 Made with ❤️ for high-engagement content creators on X.
 
 **Repo**: https://github.com/Wachiye/grokai-commentor
+
+## 🛠️ Development Workflow (saved to memory)
+
+**Rule**: For **any new feature or fix**, you must:
+- Stage and commit the changes with a clear, descriptive message (e.g. `feat: ...` or `fix: ...`).
+- Push to the `main` branch on origin.
+- Update README.md (and this section if needed) for user-visible changes.
+- This instruction is persisted as project memory.
+
+Current branch: `main`
+Remote: https://github.com/Wachiye/grokai-commentor.git
+
+Use `git add`, `git commit -m "..."`, `git push origin main`.
