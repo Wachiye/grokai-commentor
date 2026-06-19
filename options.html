@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GrokAI Settings</title>
+  <link rel="stylesheet" href="options.css" />
+</head>
+<body>
+  <main class="container">
+    <header>
+      <img src="icons/icon48.png" alt="" width="40" height="40" />
+      <div>
+        <h1>GrokAI Settings</h1>
+        <p>Configure your xAI API key and preferences</p>
+      </div>
+    </header>
+
+    <form id="settings-form">
+      <label>
+        <span>xAI API Key</span>
+        <input type="password" id="apiKey" placeholder="xai-..." autocomplete="off" required />
+        <small>
+          Get your key at <a href="https://console.x.ai/team/default/api-keys" target="_blank">console.x.ai</a>.
+          Must start with <code>xai-</code> (not a Grok login token).
+        </small>
+      </label>
+
+      <label>
+        <span>Model</span>
+        <select id="model">
+          <option value="grok-4.3">grok-4.3 (recommended)</option>
+          <option value="grok-3-fast">grok-3-fast</option>
+          <option value="grok-3">grok-3</option>
+          <option value="grok-3-mini">grok-3-mini</option>
+        </select>
+      </label>
+
+      <label>
+        <span>System Prompt</span>
+        <textarea id="systemPrompt" rows="4" placeholder="You are Grok, a helpful AI assistant..."></textarea>
+        <small>Used for general chat, summarize, explain, and analyze.</small>
+      </label>
+
+      <label>
+        <span>Comment Generator Prompt</span>
+        <textarea id="commentPrompt" rows="18" placeholder="Kenyan X/Twitter reply writer instructions..."></textarea>
+        <small>Used when you click <strong>Generate comment</strong> or the Comment quick action. Long text is supported.</small>
+      </label>
+
+      <label>
+        <span>Post Generator Prompt</span>
+        <textarea id="postPrompt" rows="18" placeholder="Kenyan X/Twitter original post writer instructions..."></textarea>
+        <small>Used when you click <strong>Craft Post</strong> or the floating menu's craft post action. Long text is supported.</small>
+      </label>
+
+      <label class="checkbox">
+        <input type="checkbox" id="floatingEnabled" checked />
+        <span>Show floating button on pages</span>
+      </label>
+
+      <div class="actions">
+        <button type="submit">Save Settings</button>
+        <button type="button" id="test-btn">Test Connection</button>
+        <span id="save-status"></span>
+      </div>
+      <p id="test-status" class="test-status"></p>
+    </form>
+
+    <section class="help">
+      <h2>Fixing 403 Forbidden</h2>
+      <p>A 403 usually means your API key is missing permissions, not that the extension is broken.</p>
+      <ol>
+        <li>Open <a href="https://console.x.ai/team/default/api-keys" target="_blank">console.x.ai → API Keys</a></li>
+        <li>Create a new key or edit your existing key</li>
+        <li>Grant permissions: <code>api-key:endpoint:*</code> and <code>api-key:model:*</code></li>
+        <li>Ensure your team has billing/credits enabled</li>
+        <li>Use model <code>grok-4.3</code> and click <strong>Test Connection</strong></li>
+      </ol>
+      <p><strong>Do not use</strong> your Grok.com login token — only use an API key from the xAI Console.</p>
+    </section>
+
+    <section class="help">
+      <h2>How to install</h2>
+      <ol>
+        <li>Open <code>chrome://extensions</code></li>
+        <li>Enable <strong>Developer mode</strong></li>
+        <li>Click <strong>Load unpacked</strong></li>
+        <li>Select the <code>grokai-extension</code> folder</li>
+      </ol>
+    </section>
+  </main>
+
+  <script src="options.js"></script>
+</body>
+</html>

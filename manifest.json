@@ -1,0 +1,58 @@
+{
+  "manifest_version": 3,
+  "name": "GrokAI - AI Browser Assistant",
+  "short_name": "GrokAI",
+  "version": "1.0.0",
+  "description": "Engage with any webpage using Grok AI — summarize, analyze, generate comments, and craft posts",
+  "author": "GrokAI",
+  "permissions": [
+    "storage",
+    "sidePanel",
+    "clipboardWrite",
+    "activeTab",
+    "scripting",
+    "contextMenus"
+  ],
+  "host_permissions": [
+    "https://api.x.ai/*",
+    "http://*/*",
+    "https://*/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png"
+    },
+    "default_title": "GrokAI"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "content_scripts": [
+    {
+      "js": ["content.js", "floating-button.js"],
+      "matches": ["http://*/*", "https://*/*"],
+      "run_at": "document_end"
+    }
+  ],
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "web_accessible_resources": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "resources": ["icons/*"]
+    }
+  ]
+}

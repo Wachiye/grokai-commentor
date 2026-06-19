@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GrokAI</title>
+  <link rel="stylesheet" href="sidepanel.css" />
+</head>
+<body>
+  <header class="header">
+    <div class="brand">
+      <img src="icons/icon32.png" alt="" width="24" height="24" />
+      <div>
+        <h1>GrokAI</h1>
+        <p id="page-context">Ready</p>
+      </div>
+    </div>
+    <button id="settings-btn" title="Settings">⚙</button>
+  </header>
+
+  <section class="quick-actions">
+    <button data-intent="summarize">Summarize</button>
+    <button data-intent="comment">Comment</button>
+    <button data-intent="post">Craft Post</button>
+    <button data-intent="explain">Explain</button>
+    <button data-intent="analyze">Analyze</button>
+  </section>
+
+  <main id="messages" class="messages" aria-live="polite"></main>
+
+  <footer class="composer">
+    <textarea id="prompt" rows="3" placeholder="Ask Grok anything, or type a topic then click Craft Post..."></textarea>
+    <div class="composer-actions">
+      <span id="status"></span>
+      <button id="send-btn">Send</button>
+    </div>
+  </footer>
+
+  <script src="sidepanel.js"></script>
+</body>
+</html>
