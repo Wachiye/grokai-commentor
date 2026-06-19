@@ -215,8 +215,16 @@ class GrokFloatingButton {
       return;
     }
 
-    // For quick comment / post: generate directly and display results in the floating panel
-    if (action === "comment" || action === "post") {
+    if (action === "post") {
+      // Show composer so user can create completely original posts of their own
+      // (not forced to be based on the current tweet/page)
+      this.panel.style.display = "block";
+      this.panelOpen = true;
+      this.showPostComposer(ctx);
+      return;
+    }
+
+    if (action === "comment") {
       // Ensure the floating panel is visible so user can immediately see the results without scrolling sidepanel
       this.panel.style.display = "block";
       this.panelOpen = true;
@@ -386,6 +394,99 @@ class GrokFloatingButton {
         pill.style.borderColor = '#ddd';
       }
     });
+  }
+
+  // ---------- Post Composer: allow completely original posts of your own ----------
+  // (not forced to be based on whatever tweet/page you are currently viewing)
+  showPostComposer(initialCtx = null) {
+    this.ensureStyles();
+    this.actionsContainer.style.display = "none";
+    this.resultsContainer.style.display = "block";
+    this.panel.style.width = "340px";
+
+    const ctx = initialCtx || window.GrokContent?.getPageContext?.() || {};
+
+    this.resultsContainer.innerHTML = `
+      <div style="margin-bottom:8px;">
+        <div style="font-weight:600;font-size:13px;margin-bottom:4px;">Craft new post</div>
+        <div style="font-size:10px;color:#666;margin-bottom:6px;">Leave the box empty for completely original posts of your own (not based on the current page).</div>
+        
+        <textarea id="post-idea" placeholder="Your idea, topic, or direction (optional)" 
+          style="width:100%;min-height:58px;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:12px;resize:vertical;"></textarea>
+        
+        <label style="display:flex;align-items:center;gap:6px;margin:8px 0;font-size:11px;color:#333;">
+          <input type="checkbox" id="post-use-context" style="margin:0;">
+          <span>Use current page/tweet as inspiration</span>
+        </label>
+      </div>
+
+      <div style="display:flex;gap:6px;">
+        <button id="post-generate" class="grokai-float-btn" style="flex:1;padding:7px 10px;font-size:12px;font-weight:500;">Generate</button>
+        <button id="post-cancel" class="grokai-float-btn" style="padding:7px 14px;font-size:12px;">Cancel</button>
+      </div>
+    `;
+
+    const ideaEl = this.resultsContainer.querySelector('#post-idea');
+    const useCtxEl = this.resultsContainer.querySelector('#post-use-context');
+    const genBtn = this.resultsContainer.querySelector('#post-generate');
+    const cancelBtn = this.resultsContainer.querySelector('#post-cancel');
+
+    // Default: fresh new post (unchecked)
+    if (useCtxEl) useCtxEl.checked = false;
+
+    // Auto-focus the idea box for quick "new post of my own"
+    setTimeout(() => ideaEl?.focus(), 80);
+
+    const doGenerate = async () => {
+      const idea = (ideaEl?.value || "").trim();
+      const useContext = !!(useCtxEl && useCtxEl.checked);
+
+      const genContent = useContext ? (ctx.content || ctx.selection || "") : "";
+      const genCtx = {
+        ...ctx,
+        title: ctx.title || document.title,
+        url: ctx.url || location.href,
+        topic: idea
+      };
+
+      this.showLoading("post");
+
+      try {
+        const payload = {
+          type: "GENERATE",
+          action: "post",
+          content: genContent,
+          context: genCtx
+        };
+        const usedTone = this.selectedTone || 'auto';
+        payload.tone = usedTone;
+
+        const response = await chrome.runtime.sendMessage(payload);
+
+        if (response && response.content) {
+          this.showResults(response.content, "post", genCtx, usedTone);
+        } else if (response && response.error) {
+          this.showResultsError(response.error);
+        } else {
+          this.showResultsError("No result returned. Check your API key in settings.");
+        }
+      } catch (err) {
+        this.showResultsError(err.message || "Generation failed");
+      }
+    };
+
+    if (genBtn) genBtn.addEventListener("click", doGenerate);
+    if (cancelBtn) cancelBtn.addEventListener("click", () => this.clearResults());
+
+    // Allow Enter in textarea to generate (Shift+Enter for newline)
+    if (ideaEl) {
+      ideaEl.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          doGenerate();
+        }
+      });
+    }
   }
 
   // ---------- Results UI in floating panel (no more sidepanel scrolling to see comments) ----------

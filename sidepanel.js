@@ -185,7 +185,11 @@ async function runIntent(intent, payload = {}) {
         : "Craft new posts";
     addMessage("user", label);
     if (topic) promptEl.value = "";
-    await generate("post", content || "", { topic });
+
+    // If user typed their own topic/idea, generate fresh posts of their own.
+    // Don't base it entirely on the current tweet by default.
+    const genContent = topic ? "" : (content || "");
+    await generate("post", genContent, { topic });
     return;
   }
 
