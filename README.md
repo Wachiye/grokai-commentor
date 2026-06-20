@@ -14,7 +14,7 @@ Optimized for scroll-stopping, quotable, and "massively" engaging output with fe
 - **Original Post Crafting** — Full tone selection support for creating new posts
 - **Inline Results** — View and copy results directly in the floating panel (no more scrolling side panels)
 - **Side Panel** — Full chat interface, history, and additional tools (Summarize, Explain, Analyze)
-- **Context Awareness** — Automatically adapts to the current tweet/post/page
+- **Context Awareness** — Automatically adapts to the current tweet/post/page (now includes images, videos, quoted tweets, and link previews so comments are contextually accurate)
 - **Customizable Prompts** — Advanced users can edit system prompts in Settings
 - **Context Menu** — Right-click anywhere for quick actions
 - Works on X/Twitter, LinkedIn, Reddit, and any website

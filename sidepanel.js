@@ -263,6 +263,9 @@ async function generate(action, content, extraContext = {}) {
         title: pageContext.title,
         url: pageContext.url,
         platform: pageContext.platform,
+        hasMedia: pageContext.hasMedia,
+        quotedContent: pageContext.quotedContent,
+        mediaSummary: pageContext.mediaSummary,
         ...extraContext
       }
     };
@@ -299,6 +302,8 @@ function buildUserPrompt(text) {
   const contextBits = [];
   if (pageContext.title) contextBits.push(`Page title: ${pageContext.title}`);
   if (pageContext.url) contextBits.push(`URL: ${pageContext.url}`);
+  if (pageContext.hasMedia) contextBits.push("Note: Post contains media (images/video) described in context below.");
+  if (pageContext.quotedContent) contextBits.push(`Quoted context: ${pageContext.quotedContent}`);
   if (pageContext.content && !text.includes(pageContext.content.slice(0, 200))) {
     contextBits.push(`Page context:\n${pageContext.content.slice(0, 4000)}`);
   }

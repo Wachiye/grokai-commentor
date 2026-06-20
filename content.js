@@ -13,6 +13,14 @@ const GrokContent = {
   extractPostContent(element) {
     if (!element) return "";
 
+    const host = location.hostname;
+    const isTwitter = host.includes("twitter.com") || host.includes("x.com");
+
+    if (isTwitter) {
+      const rich = this.extractTwitterRichPost(element);
+      if (rich) return rich;
+    }
+
     const selectors = [
       '[data-testid="tweetText"]',
       '[data-testid="post_message"]',
@@ -34,6 +42,150 @@ const GrokContent = {
     return element.innerText?.trim() || "";
   },
 
+  // Rich extractor for X/Twitter posts: captures text + media (images/video) + quoted tweets (link-to-context) + link previews.
+  // This fixes awkward comments on media-heavy or quote-tweet posts.
+  extractTwitterRichPost(article) {
+    if (!article) return "";
+
+    // If we were passed an inner node (e.g. the text block), climb to the containing tweet article
+    if (article.getAttribute && article.getAttribute('data-testid') === 'tweetText') {
+      article = article.closest('article[data-testid="tweet"]') || article;
+    }
+    if (article.closest && !article.matches?.('article[data-testid="tweet"], [role="article"]')) {
+      const found = article.closest('article[data-testid="tweet"]') || article.closest('[role="article"]');
+      if (found) article = found;
+    }
+
+    // Main tweet text (first tweetText is almost always the poster's own)
+    const textNodes = Array.from(article.querySelectorAll('[data-testid="tweetText"]'));
+    let mainText = textNodes.length > 0 ? textNodes[0].innerText.trim() : "";
+    if (!mainText) {
+      // fallback to article text minus controls
+      mainText = (article.innerText || "").trim();
+    }
+
+    const parts = [mainText].filter(Boolean);
+
+    // --- MEDIA: images (prefer alt text), videos ---
+    const mediaNotes = [];
+
+    // Tweet photos / images
+    const photoImgs = Array.from(
+      article.querySelectorAll('img[alt], [data-testid="tweetPhoto"] img, a[href*="/photo/"] img')
+    );
+    const seenAlts = new Set();
+    const alts = [];
+    for (const img of photoImgs) {
+      let alt = (img.getAttribute("alt") || "").trim();
+      const inPhotoContainer = !!img.closest('[data-testid*="photo" i], [data-testid="tweetPhoto"], a[href*="/photo/"]');
+      const isAvatar = !!img.closest('[data-testid="UserAvatar"], [data-testid*="avatar" i]');
+      const tooSmall = ((img.width || img.clientWidth || 0) < 80) && ((img.height || img.clientHeight || 0) < 80);
+      const isAvatarLike = alt.length < 3 || isAvatar || (!inPhotoContainer && tooSmall);
+      // Accept if it has a real alt or lives in a known photo container
+      if ((alt && !isAvatarLike) || inPhotoContainer) {
+        if (alt && !seenAlts.has(alt)) {
+          seenAlts.add(alt);
+          alts.push(alt);
+        } else if (!alt && inPhotoContainer) {
+          alts.push("photo");
+        }
+      }
+    }
+    if (alts.length) {
+      const displayAlts = alts.slice(0, 3).join(" | ");
+      mediaNotes.push(`[Attached image${alts.length > 1 ? "s" : ""}: ${displayAlts}]`);
+    }
+
+    // Videos / GIFs / animated
+    const hasVideo = !!article.querySelector("video") ||
+      !!article.querySelector('[data-testid*="video" i], [data-testid="videoPlayer"], [aria-label*="video" i], [role="progressbar"]');
+    if (hasVideo) {
+      mediaNotes.push("[Contains video / GIF / animated media]");
+    }
+
+    // Link preview cards (external context)
+    const card = article.querySelector('[data-testid*="card"], [data-testid="card.wrapper"], [data-testid="card.layout"]');
+    if (card) {
+      const cardText = (card.innerText || "").replace(/\s+/g, " ").trim().slice(0, 220);
+      if (cardText && cardText.length > 8) {
+        mediaNotes.push(`[Link preview: ${cardText}]`);
+      }
+    }
+
+    // External http links mentioned
+    const extLinks = Array.from(article.querySelectorAll('a[href^="http"]'))
+      .map(a => a.href)
+      .filter(h => !h.includes("x.com") && !h.includes("twitter.com") && !/\/status\//.test(h) && !/\/photo\//.test(h))
+      .slice(0, 2);
+    if (extLinks.length) {
+      mediaNotes.push(`[Links in post: ${extLinks.join(", ")}]`);
+    }
+
+    if (mediaNotes.length) {
+      parts.push(mediaNotes.join(" "));
+    }
+
+    // --- QUOTED TWEET / linked context (the key missing piece) ---
+    let quotedText = "";
+
+    // Primary: multiple tweetText nodes inside the same article => second/last is usually the quoted one
+    if (textNodes.length >= 2) {
+      const candidate = textNodes[textNodes.length - 1].innerText.trim();
+      if (candidate && candidate !== mainText) {
+        quotedText = candidate;
+      }
+    }
+
+    // Secondary: dedicated quote container or nested status link block
+    if (!quotedText) {
+      const quoteSelectors = [
+        '[data-testid="quoteTweet"]',
+        'div[role="link"][href*="/status/"]',
+        'a[role="link"][href*="/status/"]',
+        // Sometimes wrapped
+        'article[data-testid="tweet"] [data-testid="tweetText"]'
+      ];
+      for (const sel of quoteSelectors) {
+        const qEls = article.querySelectorAll(sel);
+        for (const qEl of qEls) {
+          // ignore the primary text node
+          if (textNodes[0] && (qEl === textNodes[0] || textNodes[0].contains(qEl))) continue;
+          const t = (qEl.innerText || "").trim();
+          if (t && t !== mainText && t.length > 3) {
+            quotedText = t;
+            break;
+          }
+        }
+        if (quotedText) break;
+      }
+    }
+
+    // Fallback: any inner article that is not the root of this article
+    if (!quotedText) {
+      const innerTweets = article.querySelectorAll('article[data-testid="tweet"]');
+      if (innerTweets.length > 1) {
+        const qText = innerTweets[innerTweets.length - 1].querySelector('[data-testid="tweetText"]');
+        if (qText) {
+          const t = qText.innerText.trim();
+          if (t && t !== mainText) quotedText = t;
+        }
+      }
+    }
+
+    if (quotedText) {
+      parts.push(`[Quoted / linked context: ${quotedText}]`);
+    }
+
+    // Replying-to indicator (helps for thread context)
+    const replyTo = article.querySelector('[data-testid="reply"]') || article.textContent.match(/Replying to @\w+/i);
+    if (replyTo) {
+      const rt = typeof replyTo === "string" ? replyTo : (replyTo.textContent || "").trim();
+      if (rt) parts.push(`[Replying to: ${rt.slice(0, 80)}]`);
+    }
+
+    return parts.join("\n").trim();
+  },
+
   // Extra: pull the actual main tweet on a status page for better comment context
   extractMainTweetText() {
     const statusMatch = location.pathname.match(/\/status\/(\d+)/);
@@ -42,7 +194,8 @@ const GrokContent = {
     // Prefer the first (main) tweet on conversation view
     const articles = document.querySelectorAll('article[data-testid="tweet"]');
     if (articles.length > 0) {
-      return this.extractPostContent(articles[0]);
+      // Use rich twitter extraction directly (media + quoted)
+      return this.extractTwitterRichPost(articles[0]) || this.extractPostContent(articles[0]);
     }
     return "";
   },
@@ -55,7 +208,19 @@ const GrokContent = {
       if (statusMatch) {
         const articles = document.querySelectorAll('article[data-testid="tweet"]');
         if (articles.length) {
-          return this.extractPostContent(articles[0]);
+          // On status page, articles[0] is typically the root/main tweet for the URL.
+          // But also scan for a "focused" or highlighted tweet (some reply UIs).
+          let main = articles[0];
+          // Prefer one that looks selected / has focus ring or is the largest text block
+          for (const a of articles) {
+            if (a.getAttribute("aria-selected") === "true" ||
+                a.querySelector('[aria-current="true"]') ||
+                a.querySelector('[data-testid="tweetText"]')?.closest('div[tabindex="0"]')) {
+              main = a;
+              break;
+            }
+          }
+          return this.extractTwitterRichPost(main) || this.extractPostContent(main);
         }
       }
 
@@ -64,7 +229,7 @@ const GrokContent = {
         document.querySelector('[data-testid="primaryColumn"]');
       const focused = column?.querySelector('article[data-testid="tweet"]');
       if (focused) {
-        return this.extractPostContent(focused);
+        return this.extractTwitterRichPost(focused) || this.extractPostContent(focused);
       }
     }
 
@@ -73,6 +238,10 @@ const GrokContent = {
       '[role="article"], article, .post, [data-testid*="tweet"], [data-testid*="post"]'
     );
     if (postEl) {
+      const host = location.hostname;
+      if (host.includes("twitter.com") || host.includes("x.com")) {
+        return this.extractTwitterRichPost(postEl) || this.extractPostContent(postEl);
+      }
       return this.extractPostContent(postEl);
     }
 
@@ -80,6 +249,10 @@ const GrokContent = {
       document.querySelector('article[data-testid="tweet"]') ||
       document.querySelector("article");
     if (article) {
+      const host = location.hostname;
+      if (host.includes("twitter.com") || host.includes("x.com")) {
+        return this.extractTwitterRichPost(article) || this.extractPostContent(article);
+      }
       return this.extractPostContent(article);
     }
 
@@ -108,7 +281,7 @@ const GrokContent = {
       .trim()
       .slice(0, 8000);
 
-    return {
+    const ctx = {
       platform,
       title: document.title,
       url: location.href,
@@ -117,6 +290,17 @@ const GrokContent = {
       pageText,
       content: selection || postContent || pageText
     };
+
+    // Expose parsed rich hints for twitter (helps prompts + sidepanel)
+    if (platform === "twitter" && postContent) {
+      ctx.hasMedia = /\[Attached image|\[Contains video/i.test(postContent);
+      const qMatch = postContent.match(/\[Quoted \/ linked context:([^\]]+)\]/i);
+      if (qMatch) ctx.quotedContent = qMatch[1].trim();
+      const mMatch = postContent.match(/\[Attached image[^\]]*\]/i);
+      if (mMatch) ctx.mediaSummary = mMatch[0];
+    }
+
+    return ctx;
   },
 
   showNotification(message, type = "info") {

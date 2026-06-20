@@ -521,6 +521,12 @@ async function generateWithGrok(action, content, context = {}, tone = null) {
       tonePrefix = `Tone: Use a ${desc} style for the replies. Make this the dominant voice. `;
     }
 
+    // Build extra structured hints if the context object carries them (from rich extraction)
+    let extraContextBlock = "";
+    if (context.hasMedia) extraContextBlock += "\nNote: This post includes media (image or video).";
+    if (context.quotedContent) extraContextBlock += `\nQuoted/linked tweet context: ${context.quotedContent}`;
+    if (context.mediaSummary) extraContextBlock += `\nMedia details: ${context.mediaSummary}`;
+
     const userPrompt = `${tonePrefix}Generate up to 5 high-engagement reply options for this ${platform === "twitter" ? "tweet" : "post"}.
 
 Goal: create replies that have a real chance of going massively (likes, quotes, long threads).
@@ -530,12 +536,21 @@ Prioritize:
 - Mix of funny, validating, bold, and conversation-starting angles
 - At least one option with serious "this could blow up" energy
 
+IMPORTANT CONTEXT RULES:
+- The "Content" below may contain special markers for things the user can see but plain text misses:
+  - [Attached image(s): ...]  → reference the visual content described (what is shown, captions, memes, screenshots)
+  - [Contains video / GIF / animated media] → the post has moving media; acknowledge or react to what is likely happening
+  - [Quoted / linked context: ...] → this is the tweet being quote-tweeted or linked; your reply should make sense in the full conversation (original + quoted)
+  - [Link preview: ...] or [Links in post: ...] → the post links somewhere; you can reference the linked material
+  - [Replying to: ...] → context for threaded replies
+- Use these details to avoid generic or context-blind replies. Make callbacks specific to visuals, the quoted material, or linked context when present.
+
 For EACH reply, rate its potential for massive engagement (likes, quote tweets, reply chains) on a scale of 1-10.
 Use this exact format for every reply:
 "reply text here" [Score: 9/10 - short reason focused on virality]
 
 URL: ${context.url || "Unknown"}
-Title: ${context.title || ""}
+Title: ${context.title || ""}${extraContextBlock}
 
 Content:
 ${content}
@@ -656,28 +671,53 @@ async function extractPageContent(tabId) {
     target: { tabId },
     func: () => {
       const selection = window.getSelection()?.toString()?.trim() || "";
-      const article =
-        document.querySelector("article") ||
-        document.querySelector('[role="article"]') ||
-        document.querySelector("main") ||
-        document.body;
+      const host = location.hostname;
+      const isTwitter = host.includes("twitter.com") || host.includes("x.com");
 
-      const clone = article.cloneNode(true);
+      // Prefer the primary tweet article on twitter
+      let root = document.querySelector('article[data-testid="tweet"]') ||
+                 document.querySelector('[role="article"]') ||
+                 document.querySelector("article") ||
+                 document.querySelector("main") ||
+                 document.body;
+
+      if (isTwitter) {
+        const articles = document.querySelectorAll('article[data-testid="tweet"]');
+        if (articles.length) root = articles[0];
+      }
+
+      const clone = root.cloneNode(true);
       clone
-        .querySelectorAll("script, style, nav, footer, aside, iframe, noscript")
+        .querySelectorAll("script, style, nav, footer, aside, iframe, noscript, button, [role='button']")
         .forEach((el) => el.remove());
 
-      const text = (clone.innerText || clone.textContent || "")
+      let text = (clone.innerText || clone.textContent || "")
         .replace(/\s+/g, " ")
         .trim()
         .slice(0, 12000);
 
-      const host = location.hostname;
       let platform = "web";
-      if (host.includes("twitter.com") || host.includes("x.com")) platform = "twitter";
+      if (isTwitter) platform = "twitter";
       else if (host.includes("linkedin.com")) platform = "linkedin";
       else if (host.includes("reddit.com")) platform = "reddit";
       else if (host.includes("facebook.com")) platform = "facebook";
+
+      // For twitter fallback, try to surface media/quote hints from the DOM even in the crude path
+      if (isTwitter && root) {
+        const extras = [];
+        const imgs = root.querySelectorAll('img[alt]');
+        const alts = Array.from(imgs)
+          .map(i => (i.alt || '').trim())
+          .filter(a => a.length > 4 && !a.toLowerCase().includes('profile'))
+          .slice(0, 2);
+        if (alts.length) extras.push(`[Attached image hint: ${alts.join(" | ")}]`);
+        if (root.querySelector('video, [data-testid*="video"]')) extras.push("[Contains video]");
+        const q = root.querySelectorAll('[data-testid="tweetText"]');
+        if (q.length > 1) extras.push(`[Quoted context may be present]`);
+        if (extras.length) {
+          text = text + " " + extras.join(" ");
+        }
+      }
 
       return {
         title: document.title,
