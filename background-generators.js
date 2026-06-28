@@ -39,9 +39,7 @@ IMPORTANT CONTEXT RULES:
 - Each reply must be copy-paste ready.
 
 Output format:
-Prefer this exact JSON shape when possible:
-{"items":[{"text":"reply text","score":9,"reason":"short virality reason"}],"bestIndex":0,"bestPick":"one-line reason"}
-If not using JSON, use the legacy quote format exactly:
+Use this exact format for every reply:
 "reply text" [Score: 9/10 - short reason]
 Best pick: Option X — reason
 
@@ -77,9 +75,7 @@ ${content}`;
         "No specific topic: create timely, sharp original posts that would feel native to current Kenyan X and can reach beyond followers."
       );
     }
-    parts.push(
-      'Output format: Prefer JSON: {"items":[{"text":"post text","score":9,"reason":"short virality reason"}],"bestIndex":0,"bestPick":"one-line reason"}. If not JSON, use quoted options and a Best pick line.'
-    );
+    parts.push('Output format: Use clean quoted options and a Best pick line.');
 
     return parts.join("\n\n");
   }
