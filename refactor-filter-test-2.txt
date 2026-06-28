@@ -1,0 +1,2 @@
+const serviceToken = "";
+const endpoint = "https://api.x.ai/v1/chat/completions";
