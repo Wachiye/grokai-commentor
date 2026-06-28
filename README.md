@@ -17,6 +17,8 @@ Optimized for scroll-stopping, quotable, and "massively" engaging output with fe
 - **Context Awareness** — Automatically adapts to the current tweet/post/page (now includes images, videos, quoted tweets, and link previews so comments are contextually accurate)
 - **Customizable Prompts** — Advanced users can edit system prompts in Settings
 - **Context Menu** — Right-click anywhere for quick actions
+- **Keyboard Shortcut** — `Ctrl/Cmd + Shift + G` opens GrokAI quickly
+- **Client-side Usage Guardrails** — Local rate limiting helps protect your xAI credits from accidental runaway calls
 - Works on X/Twitter, LinkedIn, Reddit, and any website
 
 ## 📦 Installation
@@ -71,7 +73,7 @@ Optimized for scroll-stopping, quotable, and "massively" engaging output with fe
 
 ### Keyboard / Context Menu
 
-Right-click selected text or the page for quick Grok actions.
+Use `Ctrl + Shift + G` on Windows/Linux or `Cmd + Shift + G` on macOS to open GrokAI. You can also right-click selected text or the page for quick Grok actions.
 
 ### Regenerate with Different Tone
 
@@ -87,6 +89,8 @@ Visit the Options page to configure:
 - Custom Comment Generator Prompt
 - Custom Post Generator Prompt
 - Floating button toggle
+- Available model refresh from your xAI account
+- Local usage estimates and rate-limit protection
 
 Long prompts are fully supported.
 
@@ -103,13 +107,19 @@ The extension uses Manifest V3 and communicates with `https://api.x.ai/v1/chat/c
 
 ```
 .
-├── background.js          # API calls + prompt logic
-├── comment-prompt.js      # Default comment system prompt
-├── post-prompt.js         # Default post system prompt
-├── content.js             # Page context extraction
-├── floating-button.js     # Floating UI + results + tone selector
-├── sidepanel.*            # Full chat side panel
-├── options.*              # Settings page
+├── background.js              # Service-worker event wiring only
+├── background-config.js       # Constants, model defaults, pricing, limits
+├── background-storage.js      # Settings, usage stats, local rate limiting
+├── background-api.js          # xAI API calls, model listing, connection test
+├── background-generators.js   # Prompt assembly for chat/comment/post actions
+├── background-panel.js        # Side panel delivery queue and active-tab helpers
+├── background-context.js      # Background page-context extraction fallback
+├── comment-prompt.js          # Default comment system prompt
+├── post-prompt.js             # Default post system prompt
+├── content.js                 # Page/X context extraction
+├── floating-button.js         # Floating UI + results + tone selector
+├── sidepanel.*                # Full chat side panel
+├── options.*                  # Settings page
 ├── manifest.json
 └── icons/
 ```
@@ -117,9 +127,23 @@ The extension uses Manifest V3 and communicates with `https://api.x.ai/v1/chat/c
 ## ❓ Troubleshooting
 
 - **403 Forbidden**: See the "Fixing 403 Forbidden" section in Options.
+- **Rate limit reached**: The extension locally allows 12 AI calls/minute and 80/hour to protect your credits. Wait and retry.
 - Extension not appearing: Make sure you loaded the correct folder and Developer mode is on.
 - Low quality output: Try a different tone or update your custom prompts.
-- Scores not showing: The model sometimes needs to be prompted clearly — regenerate or try a different tone.
+- Scores not showing: The floating UI now parses JSON, scored quote output, and numbered-list fallbacks; regenerate if the model still returns unusual formatting.
+
+
+## 🔧 Refactor Notes
+
+This build implements the review checklist items around maintainability and robustness:
+
+- Split the large background service worker into focused modules.
+- Added local AI-call rate limiting before chat/comment/post requests.
+- Improved generated-output parsing with JSON, scored quote, and numbered-list support.
+- Added dynamic model refresh in Settings.
+- Added dark-mode support for the Options page.
+- Improved X/Twitter rich-context handoff for media, link previews, quote tweets, and reply context.
+- Added the advertised `Ctrl/Cmd + Shift + G` command in `manifest.json`.
 
 ## 📝 License
 
