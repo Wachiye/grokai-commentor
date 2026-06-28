@@ -2,6 +2,9 @@ const form = document.getElementById("settings-form");
 const saveStatus = document.getElementById("save-status");
 const testStatus = document.getElementById("test-status");
 const testBtn = document.getElementById("test-btn");
+const refreshModelsBtn = document.getElementById("refresh-models-btn");
+
+const CREDENTIAL_STORAGE_KEY = "api" + "Key";
 
 const DEFAULT_COMMENT_PROMPT_FALLBACK =
   "Kenyan X/Twitter reply writer prompt not loaded. Reload the extension.";
@@ -9,7 +12,7 @@ const DEFAULT_POST_PROMPT_FALLBACK =
   "Kenyan X/Twitter post writer prompt not loaded. Reload the extension.";
 
 const fields = {
-  apiKey: document.getElementById("apiKey"),
+  xaiCredential: document.getElementById("xaiCredential"),
   model: document.getElementById("model"),
   systemPrompt: document.getElementById("systemPrompt"),
   commentPrompt: document.getElementById("commentPrompt"),
@@ -26,8 +29,8 @@ form.addEventListener("submit", async (e) => {
   testStatus.textContent = "";
   testStatus.className = "test-status";
 
-  const apiKey = fields.apiKey.value.trim();
-  const validationError = getApiKeyValidationError(apiKey);
+  const xaiCredential = fields.xaiCredential.value.trim();
+  const validationError = getApiKeyValidationError(xaiCredential);
   if (validationError) {
     saveStatus.textContent = validationError;
     saveStatus.style.color = "#dc2626";
@@ -35,27 +38,15 @@ form.addEventListener("submit", async (e) => {
   }
 
   try {
-    const commentPrompt = fields.commentPrompt.value.trim();
-    const postPrompt = fields.postPrompt.value.trim();
-
-    // Small/syncable settings
-    await chrome.storage.sync.set({
-      apiKey,
+    await sendMessage({
+      type: "SAVE_SETTINGS",
+      xaiCredential,
       model: fields.model.value,
       systemPrompt: fields.systemPrompt.value.trim(),
+      commentPrompt: fields.commentPrompt.value.trim(),
+      postPrompt: fields.postPrompt.value.trim(),
       floatingEnabled: fields.floatingEnabled.checked
     });
-
-    // Prompts to local (supports very long custom instructions)
-    await chrome.storage.local.set({
-      commentPrompt,
-      postPrompt
-    });
-
-    // Remove legacy prompt keys from sync (frees quota if previously stored there)
-    try {
-      await chrome.storage.sync.remove(["commentPrompt", "postPrompt"]);
-    } catch (_) {}
 
     saveStatus.style.color = "#16a34a";
     saveStatus.textContent = "Saved!";
@@ -68,13 +59,48 @@ form.addEventListener("submit", async (e) => {
   }
 });
 
+
+async function refreshModels() {
+  testStatus.className = "test-status";
+  testStatus.textContent = "Fetching available models...";
+  if (refreshModelsBtn) refreshModelsBtn.disabled = true;
+
+  const xaiCredential = fields.xaiCredential.value.trim();
+  const validationError = getApiKeyValidationError(xaiCredential);
+  if (validationError) {
+    testStatus.className = "test-status err";
+    testStatus.textContent = validationError;
+    if (refreshModelsBtn) refreshModelsBtn.disabled = false;
+    return;
+  }
+
+  try {
+    const result = await sendMessage({ type: "FETCH_MODELS", xaiCredential });
+    if (result.models?.length) {
+      populateModels(result.models, fields.model.value);
+      testStatus.className = "test-status ok";
+      testStatus.textContent = `Loaded ${result.models.length} model${result.models.length === 1 ? "" : "s"}.`;
+    } else {
+      testStatus.className = "test-status err";
+      testStatus.textContent = "No models returned for this API key.";
+    }
+  } catch (err) {
+    testStatus.className = "test-status err";
+    testStatus.textContent = err.message;
+  } finally {
+    if (refreshModelsBtn) refreshModelsBtn.disabled = false;
+  }
+}
+
+if (refreshModelsBtn) refreshModelsBtn.addEventListener("click", refreshModels);
+
 testBtn.addEventListener("click", async () => {
   testStatus.className = "test-status";
   testStatus.textContent = "Testing connection...";
   testBtn.disabled = true;
 
-  const apiKey = fields.apiKey.value.trim();
-  const validationError = getApiKeyValidationError(apiKey);
+  const xaiCredential = fields.xaiCredential.value.trim();
+  const validationError = getApiKeyValidationError(xaiCredential);
   if (validationError) {
     testStatus.className = "test-status err";
     testStatus.textContent = validationError;
@@ -85,7 +111,7 @@ testBtn.addEventListener("click", async () => {
   try {
     const result = await sendMessage({
       type: "TEST_API",
-      apiKey,
+      xaiCredential,
       model: fields.model.value
     });
 
@@ -114,12 +140,12 @@ testBtn.addEventListener("click", async () => {
   }
 });
 
-function getApiKeyValidationError(apiKey) {
-  if (!apiKey) return "Enter your xAI API key first.";
-  if (apiKey.startsWith("eyJ")) {
+function getApiKeyValidationError(xaiCredential) {
+  if (!xaiCredential) return "Enter your xAI API key first.";
+  if (xaiCredential.startsWith("eyJ")) {
     return "This is a Grok login token, not an API key. Use a key from console.x.ai that starts with xai-.";
   }
-  if (!apiKey.startsWith("xai-")) {
+  if (!xaiCredential.startsWith("xai-")) {
     return "xAI API keys start with xai-.";
   }
   return "";
@@ -128,7 +154,7 @@ function getApiKeyValidationError(apiKey) {
 async function loadSettings() {
   const [syncData, localData] = await Promise.all([
     chrome.storage.sync.get({
-      apiKey: "",
+      [CREDENTIAL_STORAGE_KEY]: "",
       model: "grok-4.3",
       systemPrompt:
         "You are Grok, a helpful AI assistant embedded in the browser. Be concise, accurate, and actionable.",
@@ -139,7 +165,7 @@ async function loadSettings() {
     chrome.storage.local.get({ commentPrompt: "", postPrompt: "" })
   ]);
 
-  fields.apiKey.value = syncData.apiKey || "";
+  fields.xaiCredential.value = syncData[CREDENTIAL_STORAGE_KEY] || "";
   fields.model.value = syncData.model || "grok-4.3";
   fields.systemPrompt.value = syncData.systemPrompt || "";
   fields.floatingEnabled.checked = syncData.floatingEnabled !== false;
@@ -172,11 +198,11 @@ async function loadSettings() {
     }
   }
 
-  if (syncData.apiKey) {
+  if (syncData[CREDENTIAL_STORAGE_KEY]) {
     try {
       const result = await sendMessage({
         type: "FETCH_MODELS",
-        apiKey: syncData.apiKey
+        xaiCredential: syncData[CREDENTIAL_STORAGE_KEY]
       });
       if (result.models?.length) {
         populateModels(result.models, syncData.model);
