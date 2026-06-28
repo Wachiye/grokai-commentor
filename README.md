@@ -130,7 +130,7 @@ The extension uses Manifest V3 and communicates with `https://api.x.ai/v1/chat/c
 - **Rate limit reached**: The extension locally allows 12 AI calls/minute and 80/hour to protect your credits. Wait and retry.
 - Extension not appearing: Make sure you loaded the correct folder and Developer mode is on.
 - Low quality output: Try a different tone or update your custom prompts.
-- Scores not showing: The floating UI now parses JSON, scored quote output, and numbered-list fallbacks; regenerate if the model still returns unusual formatting.
+- Scores not showing: The floating UI expects scored quote output and a Best pick line; regenerate if the model returns unusual formatting.
 
 
 ## 🔧 Refactor Notes
@@ -139,7 +139,7 @@ This build implements the review checklist items around maintainability and robu
 
 - Split the large background service worker into focused modules.
 - Added local AI-call rate limiting before chat/comment/post requests.
-- Improved generated-output parsing with JSON, scored quote, and numbered-list support.
+- Kept generated-output formatting strict so floating-panel parsing remains reliable.
 - Added dynamic model refresh in Settings.
 - Added dark-mode support for the Options page.
 - Improved X/Twitter rich-context handoff for media, link previews, quote tweets, and reply context.
