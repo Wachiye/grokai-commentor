@@ -19,7 +19,7 @@
     <form id="settings-form">
       <label>
         <span>xAI API Key</span>
-        <input type="password" id="apiKey" placeholder="xai-..." autocomplete="off" required />
+        <input type="password" id="xaiCredential" placeholder="xai-..." autocomplete="off" required />
         <small>
           Get your key at <a href="https://console.x.ai/team/default/api-keys" target="_blank">console.x.ai</a>.
           Must start with <code>xai-</code> (not a Grok login token).
@@ -79,6 +79,7 @@
       <div class="actions">
         <button type="submit">Save Settings</button>
         <button type="button" id="test-btn">Test Connection</button>
+        <button type="button" id="refresh-models-btn">Refresh Models</button>
         <span id="save-status"></span>
       </div>
       <p id="test-status" class="test-status"></p>
