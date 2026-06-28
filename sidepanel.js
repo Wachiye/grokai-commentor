@@ -53,7 +53,7 @@ init();
 
 async function init() {
   const settings = await send("GET_SETTINGS");
-  if (!settings.apiKey) {
+  if (!settings.xaiCredential) {
     addMessage(
       "system",
       "Add your xAI API key in Settings to start using Grok."
@@ -87,7 +87,12 @@ function applyPageContext(payload = {}, options = {}) {
       payload.selectionText ||
       payload.postContent ||
       payload.pageText ||
-      ""
+      "",
+    hasMedia: !!payload.hasMedia,
+    quotedContent: payload.quotedContent || "",
+    mediaSummary: payload.mediaSummary || "",
+    linkPreview: payload.linkPreview || "",
+    replyingTo: payload.replyingTo || ""
   };
 
   if (!next.content && !next.url) return;
@@ -98,8 +103,6 @@ function applyPageContext(payload = {}, options = {}) {
   pageContext = next;
   updatePageContext();
 
-  // Only clear sidepanel history on strong context changes (URL change).
-  // This avoids wiping results/chat mid-use due to minor page mutations (likes, etc.).
   if (urlChanged) {
     chatHistory = [];
     if (messagesEl) messagesEl.innerHTML = "";
@@ -186,8 +189,6 @@ async function runIntent(intent, payload = {}) {
     addMessage("user", label);
     if (topic) promptEl.value = "";
 
-    // If user typed their own topic/idea, generate fresh posts of their own.
-    // Don't base it entirely on the current tweet by default.
     const genContent = topic ? "" : (content || "");
     await generate("post", genContent, { topic });
     return;
@@ -266,11 +267,12 @@ async function generate(action, content, extraContext = {}) {
         hasMedia: pageContext.hasMedia,
         quotedContent: pageContext.quotedContent,
         mediaSummary: pageContext.mediaSummary,
+        linkPreview: pageContext.linkPreview,
+        replyingTo: pageContext.replyingTo,
         ...extraContext
       }
     };
     if (action === 'comment' || action === 'post') {
-      // Try to use last selected tone from storage for consistency with floating UI
       try {
         const { selectedTone } = await chrome.storage.local.get({ selectedTone: 'auto' });
         if (selectedTone) genPayload.tone = selectedTone;
@@ -304,6 +306,8 @@ function buildUserPrompt(text) {
   if (pageContext.url) contextBits.push(`URL: ${pageContext.url}`);
   if (pageContext.hasMedia) contextBits.push("Note: Post contains media (images/video) described in context below.");
   if (pageContext.quotedContent) contextBits.push(`Quoted context: ${pageContext.quotedContent}`);
+  if (pageContext.linkPreview) contextBits.push(`Link preview: ${pageContext.linkPreview}`);
+  if (pageContext.replyingTo) contextBits.push(`Replying to: ${pageContext.replyingTo}`);
   if (pageContext.content && !text.includes(pageContext.content.slice(0, 200))) {
     contextBits.push(`Page context:\n${pageContext.content.slice(0, 4000)}`);
   }
